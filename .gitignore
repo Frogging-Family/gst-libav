@@ -13,8 +13,8 @@
 *.old
 *.db
 *.files
-*/src/
-*/pkg/
+src/
+pkg/
 gst-libav/
 ffmpeg/
 gas-preprocessor/
