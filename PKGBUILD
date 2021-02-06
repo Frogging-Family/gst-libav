@@ -28,12 +28,12 @@ _lib32="true"
 
 # Version selector
 if [ ! -e options ]; then
-  read -p "  Build the regular version or the git one?`echo $'\n\n  > 1.Regular 1.16.2 (default and recommended)\n\n    2.Git (lib32 will be disabled)\n\nchoice[1-2?]: '`" CONDITION;
+  read -p "  Build the regular version or the git one?`echo $'\n\n  > 1.Regular 1.18.3 (default and recommended)\n\n    2.Git (lib32 will be disabled)\n\nchoice[1-2?]: '`" CONDITION;
     if [ "$CONDITION" == "2" ]; then
       echo '_gitext="-git"' > options
-      echo '_lib32="false"' >> options
+      #echo '_lib32="false"' >> options
     else
-      echo '_commit="#commit=090cfd40aad49ad645a9bf4bdd62e65b739c95f3"' > options # version 1.16.2^0
+      echo '_commit="#commit=67fc1e5c6c5e578dce250ae6310de71a0f5f8ec3"' > options # tags/1.18.3^0
     fi
 fi
 
@@ -52,7 +52,7 @@ else
   pkgname=("$_basename-tkg$_gitext")
 fi
 
-pkgver=1.16.2
+pkgver=1.18.3
 pkgrel=1
 pkgdesc="GStreamer open-source multimedia framework FFmpeg plugin"
 url="https://gstreamer.freedesktop.org/"
@@ -125,8 +125,6 @@ prepare() {
   git config --local submodule.gst-libs/ext/gas-preprocessor.url "$srcdir/gas-preprocessor"
   git submodule update
 
-  NOCONFIGURE=1 ./autogen.sh
-
   rm -rf "${srcdir}"/"$_basename-tkg$_gitext"
   rm -rf "${srcdir}"/"lib32-$_basename-tkg$_gitext"
   
@@ -139,60 +137,34 @@ build() {
   export CXX='g++ -m64'
   export PKG_CONFIG_PATH='/usr/lib/pkgconfig'
 
-  cd "${srcdir}"/"$_basename-tkg$_gitext"
-  "${srcdir}"/"$_basename"/configure \
-    --prefix=/usr \
-    --sysconfdir=/etc \
-    --localstatedir=/var \
-    --libexecdir=/usr/lib \
-    --libdir=/usr/lib \
-    --build=x86_64-pc-linux-gnu \
-    --with-package-name="GStreamer libav Plugin (Arch Linux)" \
-    --with-package-origin="http://www.archlinux.org/" \
-    --without-system-libav \
-    --with-libav-extra-configure="--enable-runtime-cpudetect" \
-    --enable-experimental \
-    --disable-gtk-doc \
-    --disable-static
+  arch-meson $_basename "$_basename-tkg$_gitext" \
+    -D doc=disabled \
+    -D package-name="GStreamer FFmpeg Plugin (Arch Linux)" \
+    -D package-origin="https://www.archlinux.org/"
 
-  # https://bugzilla.gnome.org/show_bug.cgi?id=655517
-  sed -i -e 's/ -shared / -Wl,-O1,--as-needed\0/g' libtool
-
-  make
+  meson compile -C "$_basename-tkg$_gitext"
 
 if [ "$_lib32" == "true" ]; then
   export CC='gcc -m32'
   export CXX='g++ -m32'
   export PKG_CONFIG_PATH='/usr/lib32/pkgconfig'
 
-  cd "${srcdir}"/"lib32-$_basename-tkg$_gitext"
-  "${srcdir}"/"$_basename"/configure \
-    --prefix=/usr \
-    --sysconfdir=/etc \
-    --localstatedir=/var \
-    --libexecdir=/usr/lib32 \
-    --libdir=/usr/lib32 \
-    --build=i686-pc-linux-gnu \
-    --with-package-name="GStreamer libav Plugin (Arch Linux)" \
-    --with-package-origin="http://www.archlinux.org/" \
-    --without-system-libav \
-    --with-libav-extra-configure="--enable-runtime-cpudetect" \
-    --enable-experimental \
-    --disable-gtk-doc \
-    --disable-static
+  arch-meson $_basename "lib32-$_basename-tkg$_gitext" \
+    --libdir=lib32 \
+    --libexecdir=lib32 \
+    -D doc=disabled \
+    -D package-name="GStreamer FFmpeg Plugin (Arch Linux)" \
+    -D package-origin="https://www.archlinux.org/"
 
-  # https://bugzilla.gnome.org/show_bug.cgi?id=655517
-  sed -i -e 's/ -shared / -Wl,-O1,--as-needed\0/g' libtool
-
-  make
+  meson compile -C "lib32-$_basename-tkg$_gitext"
 fi
 }
 
 check() {
-  cd "${srcdir}"/"$_basename-tkg$_gitext" && make check
+  meson test -C "$_basename-tkg$_gitext" --print-errorlogs
 
 if [ "$_lib32" == "true" ]; then
-   cd "${srcdir}"/"lib32-$_basename-tkg$_gitext" && make check
+  meson test -C "lib32-$_basename-tkg$_gitext" --print-errorlogs
 fi
 }
 
@@ -201,7 +173,7 @@ pack64() {
   conflicts=('gst-libav')
 
   msg2 'Packaging gst-ffmpeg...'
-  cd "${srcdir}"/"$_basename-tkg$_gitext" && make DESTDIR="$pkgdir" install
+  DESTDIR="$pkgdir" meson install -C "$_basename-tkg$_gitext"
 }
 
 pack32() {
@@ -209,7 +181,7 @@ pack32() {
   conflicts=('lib32-gst-libav')
 
   msg2 'Packaging lib32-gst-ffmpeg...'
-  cd "${srcdir}"/"lib32-$_basename-tkg$_gitext" && make DESTDIR="$pkgdir" install
+  DESTDIR="$pkgdir" meson install -C "lib32-$_basename-tkg$_gitext"
 }
 
 package_gst-libav-tkg() {
